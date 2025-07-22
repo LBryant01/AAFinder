@@ -2,6 +2,7 @@ import "./styles.css";
 import React, { useState } from "react";
 import { dictionary } from "./Dictionary";
 import ReverseDictionary from "./Reverse";
+import { Analytics } from "@vercel/analytics/react";
 
 export default function App() {
   const [user, setUser] = useState("");
@@ -70,6 +71,7 @@ export default function App() {
     return (
       <div className="app-container">
         <h1>Reverse Acronym Decoder</h1>
+        <Analytics />
         <ReverseDictionary />
         <div className="button-group">
           <button onClick={PageChange}>Acronym Finder</button>
@@ -88,7 +90,7 @@ export default function App() {
         below, and this tool will identify potential acronyms and abbreviations
         to replace lengthy phrases.
       </p>
-
+      <Analytics />
       <textarea
         placeholder="Paste your bullet here..."
         value={user}

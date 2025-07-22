@@ -10,7 +10,7 @@ export default function App() {
   const [page, setPage] = useState(false);
 
   const handleClick = () => {
-    window.location.href = "https://zw27g9.csb.app/";
+    window.location.href = "https://londle.vercel.app/";
   };
 
   const PageChange = () => {

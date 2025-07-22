@@ -60,6 +60,7 @@ export default function ReverseDictionary() {
       </p>
       <br />
       <textarea
+       placeholder="Paste your bullet here..."
         value={user}
         onChange={(e) => setUser(e.target.value)} // Update user state on input change
       />

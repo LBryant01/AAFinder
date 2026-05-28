@@ -76,12 +76,12 @@ BULLET ANATOMY — every great bullet has three parts:
 3. IMPACT — why does it matter to THIS unit's mission specifically? (not generic — tied to the unit's real role)
 
 FORMATTING STYLE — study these real examples carefully and match their style exactly:
-- "Hosted enl conf; raised $28K f/4 NCOs to achieve edu goal/spt'd recruit of 20 amn--rec'd 5 qtrly awds/2 sq/CC LOAs"
+- "Led 13 prsnl in historic, 104-item launch; integrated 3 tactics/6 sites--deliver'd 1st-track orbital data f/8 int'l partners"
 - "Created inaugural prog; coord'd w/8 sqs/5 mths/lvl'd social barrier f/569 jr enl--lauded by 9 RW & MSG/awarded BTZ"
-- "Overhauled mx sched f/12 acft; restored FMC rate to 94%--sustained sq's 24/7 ISR coverage over AOR"
+- "Eliminated 200 discrepancies f/4 MQT scripts; guaranteed accurate, realistic training--enabled proficiency of 42 mbrs"
 - "Led trng f/22 mbrs on C2 sys; zero errors during ORI--validated unit's crit role in ICBM launch authority chain"
 - "Spearheaded UCI prep f/45 prsnl; briefed 3 discrepancies/resolved in 24 hrs--sq rated Outstanding/1 of 6 in NAF"
-- "Managed $1.2M equip acct; zero losses/100% accountability--enabled uninterrupted MW ops f/USSTRATCOM"
+- "Managed $1.2M equip acct; zero losses/100% accountability--enabled uninterrupted MW ops f/USNORTHCOM"
 - "Coord'd SATCOM upgrades across 3 sites; eliminated 14-hr outage risk--preserved GPS signal integrity f/2B+ users"
 - "Authored 6 SOPs f/OPIR data handling; adopted wing-wide--strengthened 24/7 MW alert posture IAW USSTRATCOM G&I"
 

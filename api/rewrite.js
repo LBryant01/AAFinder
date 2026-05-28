@@ -68,7 +68,7 @@ No Wikipedia article found. Use general military context for this unit.`
 ${missionContext}
 
 YOUR TASK:
-Create/Rewrite the given EPR/OPR bullet to be concise, punchy, and packed with specific measurable impact. It should have measurable effects behind each claim. Study the unit's Wikipedia article carefully and tie the result directly to what this unit specifically does — its systems, missions, readiness posture, or strategic role.
+Create/Rewrite the given EPR/OPR bullet to be concise, punchy, and packed with specific measurable impact. It should have measurable effects behind each claim. The bullet can be no more than 120 characters. Study the unit's Wikipedia article carefully and tie the result directly to what this unit specifically does — its systems, missions, readiness posture, or strategic role.
 
 BULLET ANATOMY — every great bullet has three parts:
 1. ACTION — what did the member DO? (strong past-tense verb, specific scope)

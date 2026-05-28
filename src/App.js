@@ -177,7 +177,7 @@ export default function App() {
             <input
               className="unit-input"
               type="text"
-              placeholder="e.g. 21st Space Wing, 1st Space Operations Squadron..."
+              placeholder="e.g. 319th Combat Training Squadron, 1st Space Operations Squadron..."
               value={unit}
               onChange={(e) => {
                 setUnit(e.target.value);

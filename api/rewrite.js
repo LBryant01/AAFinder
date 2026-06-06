@@ -13,9 +13,10 @@ export default async function handler(req, res) {
 
   const provider = (process.env.LLM_PROVIDER || "openai").toLowerCase();
 
-  // ── Step 1: Fetch FULL Wikipedia article for the unit ────────────────────
+  // ── Step 1: Wikipedia as baseline context ────────────────────────────────
   let unitMission = "";
   let unitMissionFull = "";
+
   if (unit && unit.trim()) {
     try {
       const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(unit.trim())}&format=json&origin=*`;
@@ -32,8 +33,8 @@ export default async function handler(req, res) {
         const page = pages ? Object.values(pages)[0] : null;
         const fullText = page?.extract || "";
 
-        unitMissionFull = fullText.length > 4000
-          ? fullText.substring(0, 4000) + "..."
+        unitMissionFull = fullText.length > 3000
+          ? fullText.substring(0, 3000) + "..."
           : fullText;
 
         unitMission = fullText.length > 600
@@ -42,8 +43,6 @@ export default async function handler(req, res) {
       }
     } catch (e) {
       console.error("Wikipedia fetch error:", e);
-      unitMission = "";
-      unitMissionFull = "";
     }
   }
 
@@ -52,59 +51,63 @@ export default async function handler(req, res) {
     .map(([phrase, abbr]) => `"${phrase}" → ${abbr}`)
     .join("\n");
 
-  // ── Step 3: Build system prompt ──────────────────────────────────────────
-  const missionContext = unitMissionFull
-    ? `UNIT: ${unit}
-
-FULL UNIT WIKIPEDIA ARTICLE:
-${unitMissionFull}`
-    : unit
-    ? `UNIT: ${unit}
-No Wikipedia article found. Use general military context for this unit.`
+  // ── Step 3: Build prompt ──────────────────────────────────────────────────
+  const wikiContext = unitMissionFull
+    ? `SUPPLEMENTAL WIKIPEDIA CONTEXT FOR ${unit}:\n${unitMissionFull}\n\n`
     : "";
 
-  const systemPrompt = `You are an elite US military EPR/OPR (Enlisted/Officer Performance Report) bullet writer with 20 years of experience writing bullets that get Airmen and Guardians promoted.
+  const unitInstruction = unit && unit.trim()
+    ? `The member's unit is: ${unit}
 
-${missionContext}
+Use your Google Search grounding to find the MOST CURRENT mission statement, roles, and strategic responsibilities of "${unit}" from official .mil websites, press releases, or news. Prioritize what you find online over the Wikipedia context below.
+
+${wikiContext}Use everything you find to make the impact statement after "--" as specific and powerful as possible — naming real systems, commands, asset values, or outcomes tied to this unit's actual current mission.`
+    : "";
+
+  const systemPrompt = `You are an elite US military EPR (Enlisted Performance Report) bullet writer with 20 years of experience writing bullets that get Airmen and Guardians promoted.
+
+${unitInstruction}
 
 YOUR TASK:
-Create/Rewrite the given EPR/OPR bullet to be concise, punchy, and packed with specific measurable impact. It should have measurable effects behind each claim. The bullet can be no more than 120 characters. Study the unit's Wikipedia article carefully and tie the result directly to what this unit specifically does — its systems, missions, readiness posture, or strategic role.
+Rewrite the given EPR bullet to match the style, density, and impact of the real examples below.
 
-BULLET ANATOMY — every great bullet has three parts:
-1. ACTION — what did the member DO? (strong past-tense verb, specific scope)
-2. RESULT — what was the measurable outcome? (numbers, percentages, rankings, dollar amounts, time saved)
-3. IMPACT — why does it matter to Higher Headquarters/Congress what you have done? (not generic — tied to the unit's real role; Has to be relevant to your mission)
-
-FORMATTING STYLE — study these real examples carefully and match their style exactly:
+REAL BULLET EXAMPLES — match this style exactly:
+- "Accomplished 462 SV special activities; configured bus system/collected analysis data--GPS constellation optimized"
+- "Analyzed crit SACCS outage; ID'd/rpr'd damaged wiring <2 hrs--restored NC2 comm link w/15 Missile Alert Facilities"
+- "Author'd GO/FO TBMW codeword proc; expedit'd vital missile info to USFJ/5AF CC--reduc'd notification time 20%"
+- "Conduct'd 15 hrs of GPS III ESA validation; safeguarded $500M SV--assured future $11B GPS constellation success"
+- "Drove SA for 146K+ sq mi AOR; processed 20+ CCIRs/briefed USFJ CC--upheld U.S./Japan alliance/58 year Treaty"
+- "Drove sq C2 for 2 satellite break-ups; defined 2 new debris fields--alerted 30 sensors of collision risks to global assets"
+- "Engr'd innovative satellite identification tactic; incr'd obs time 300%--crew won Combat Superior Performer Tm 19-22"
 - "Led 13 prsnl in historic, 104-item launch; integrated 3 tactics/6 sites--deliver'd 1st-track orbital data f/8 int'l partners"
-- "Created inaugural prog; coord'd w/8 sqs/5 mths/lvl'd social barrier f/569 jr enl--lauded by 9 RW & MSG/awarded BTZ"
-- "Eliminated 200 discrepancies f/4 MQT scripts; guaranteed accurate, realistic training--enabled proficiency of 42 mbrs"
-- "Led trng f/22 mbrs on C2 sys; zero errors during ORI--validated unit's crit role in ICBM launch authority chain"
-- "Spearheaded UCI prep f/45 prsnl; briefed 3 discrepancies/resolved in 24 hrs--sq rated Outstanding/1 of 6 in NAF"
-- "Managed $1.2M equip acct; zero losses/100% accountability--enabled uninterrupted MW ops f/USNORTHCOM"
-- "Coord'd SATCOM upgrades across 3 sites; eliminated 14-hr outage risk--preserved GPS signal integrity f/2B+ users"
-- "Authored 6 SOPs f/OPIR data handling; adopted wing-wide--strengthened 24/7 MW alert posture IAW USSTRATCOM G&I"
+- "Led top secret ntwk rpr; sync'd 4 orgs/5 prsnl, ID'd/config'd faulty encryption device--cert'd CinC/JCS emer C2 comm"
+- "Managed theater msl warning ops; led 10-mbr jt tm/processed 93 space events--produced 2 sub-CCMD SOY winners"
+- "Ops lead f/2 ISS resupply missions; tracked delivery of 11 tons of cargo--$150B asset & 6-mbr global crew sustained"
+- "Org'd CMS rpr; trn'd/liaised 2 techs w/3 comm agencies on reconfig prcs f/AEHF modem--restored $330M strat ntwk"
+- "Overhauled sys ops procedures; drove 15 updates/implemented 9 new C/Ls--slashed crew troubleshooting time 30%"
+- "Oversaw 45K daily collects; delivered vital tgt orbit determinations--enabled Jt Space Ops Center custody of 4.8k items"
+- "Secured $40B nat'l asset ISO coalition PR event; coord'd hi-pri intelligence collect--assured safety 2 coalition mbrs/asset"
+- "Tracked 3 nK missile launches; relayed crit ops/intel data to HHQ & inter-nat'l partners--ensured safety of 127M civs"
+- "Val'd acft antenna NDI pres; eval'd 138-steps/elim'd 25, cert'd $1.7M sys--keyed Gp's Gen Rawlings Tm OTY '19 awd!"
+- "Validat'd ground sys architecture; tested s/w upgrade/32 sorties/16 hrs--ensur'd integration/rec'd Operator of 2Q 2018"
+- "Hosted enl conf; raised $28K f/4 NCOs to achieve edu goal/spt'd recruit of 20 amn--rec'd 5 qtrly awds/2 sq/CC LOAs"
+- "Created inaugural prog; coord'd w/8 sqs/5 mths/lvl'd social barrier f/569 jr enl--lauded by 9 RW & MSG/awarded BTZ!"
 
-KEY STYLE RULES — match these exactly:
-- Use "f/" instead of "for"
-- Use "w/" instead of "with"
+STYLE RULES — follow every one:
+- Contract verbs: "Author'd", "ID'd", "rpr'd", "Conduct'd", "Engr'd", "Coord'd", "Trn'd", "Validat'd", "Accompl'd", "Deliver'd"
+- Use "f/" for "for", "w/" for "with", "<" for "less than", "&" for "and"
 - Use "--" (double dash) before the impact statement
-- Slash "/" to chain related items together (e.g. "zero losses/100% accountability")
-- Include real numbers wherever possible (people, dollars, percentages, time, rankings)
-- Drop all articles ("a", "an", "the") everywhere
-- Semicolons to separate action from result
-- Exclamation mark "!" at the end only for exceptional results (BTZ, DG, #1 of many)
-- Keep it to ONE line
+- Use "/" to chain related items
+- Include REAL numbers wherever possible — people, dollars, percentages, time, rankings
+- Drop all articles ("a", "an", "the") everywhere possible
+- ONE line only — dense and packed
+- Use "!" only for exceptional results (BTZ, DG, OTY, #1 ranking)
+- Impact after "--" must name a specific system, command, asset value, or outcome tied to THIS unit's actual mission
 
-BANNED ENDINGS — never use these generic phrases:
-- "for CONUS defense"
-- "for national security"  
-- "for the mission"
-- "ensured unit readiness"
-- "supported unit operations"
-- "enhanced mission capability"
-
-The impact MUST reference something specific to this unit — a strategic role it fills, or a named higher command it supports.
+BANNED endings — never write these:
+- "for CONUS defense" / "for national security" / "for the mission"
+- "ensured unit readiness" / "supported unit operations"
+- "enhanced mission capability" / "improved overall effectiveness"
 
 APPROVED ACRONYM/ABBREVIATION LIST:
 ${acronymList}`;
@@ -166,6 +169,9 @@ ${acronymList}`;
       rewritten = d.content?.[0]?.text?.trim() || "";
 
     } else if (provider === "gemini") {
+      // ── Gemini with Google Search Grounding ────────────────────────────
+      // Search grounding lets Gemini search the web automatically
+      // No extra API keys needed — included in the Gemini API
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) return res.status(500).json({ error: "GEMINI_API_KEY is not set." });
 
@@ -177,10 +183,17 @@ ${acronymList}`;
           body: JSON.stringify({
             contents: [{
               parts: [{
-                text: `${systemPrompt}\n\nRewrite this bullet:\n"${bullet}"\n\nIMPORTANT: Match the style of the examples exactly — use f/, w/, --, slashes, real numbers, and a unit-specific impact. No generic endings.`
+                text: `${systemPrompt}\n\nRewrite this bullet:\n"${bullet}"\n\nMatch the real examples exactly — contracted verbs, real numbers, f/, w/, --, unit-specific impact. One line only.`
               }]
             }],
-            generationConfig: { maxOutputTokens: 256, temperature: 0.7 },
+            // Google Search grounding — Gemini will search the web automatically
+            tools: [{
+              googleSearch: {}
+            }],
+            generationConfig: {
+              maxOutputTokens: 256,
+              temperature: 0.7,
+            },
           }),
         }
       );

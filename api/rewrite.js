@@ -1,4 +1,5 @@
 // api/rewrite.js — Vercel Serverless Function (ES module)
+// api/rewrite.js — Vercel Serverless Function (ES module)
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -13,10 +14,9 @@ export default async function handler(req, res) {
 
   const provider = (process.env.LLM_PROVIDER || "openai").toLowerCase();
 
-  // ── Step 1: Wikipedia as baseline context ────────────────────────────────
+  // ── Step 1: Fetch FULL Wikipedia article for the unit ────────────────────
   let unitMission = "";
   let unitMissionFull = "";
-
   if (unit && unit.trim()) {
     try {
       const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(unit.trim())}&format=json&origin=*`;
@@ -33,8 +33,8 @@ export default async function handler(req, res) {
         const page = pages ? Object.values(pages)[0] : null;
         const fullText = page?.extract || "";
 
-        unitMissionFull = fullText.length > 3000
-          ? fullText.substring(0, 3000) + "..."
+        unitMissionFull = fullText.length > 4000
+          ? fullText.substring(0, 4000) + "..."
           : fullText;
 
         unitMission = fullText.length > 600
@@ -43,6 +43,8 @@ export default async function handler(req, res) {
       }
     } catch (e) {
       console.error("Wikipedia fetch error:", e);
+      unitMission = "";
+      unitMissionFull = "";
     }
   }
 
@@ -172,35 +174,23 @@ ${acronymList}`;
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) return res.status(500).json({ error: "GEMINI_API_KEY is not set." });
 
-      const geminiBody = JSON.stringify({
-        contents: [{
-          parts: [{
-            text: `${systemPrompt}\n\nRewrite this bullet:\n"${bullet}"\n\nMatch the real examples exactly — contracted verbs, real numbers, f/, w/, --, unit-specific impact. One line only.`
-          }]
-        }],
-        generationConfig: { maxOutputTokens: 256, temperature: 0.7 },
-      });
-
-      // Retry up to 3 times on rate limit with exponential backoff
-      let r;
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        r = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-          { method: "POST", headers: { "Content-Type": "application/json" }, body: geminiBody }
-        );
-        if (r.status !== 429) break;
-        if (attempt < 3) {
-          const waitMs = attempt * 3000;
-          console.log(`Rate limited. Retrying in ${waitMs}ms (attempt ${attempt}/3)...`);
-          await new Promise((resolve) => setTimeout(resolve, waitMs));
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: `${systemPrompt}\n\nRewrite this bullet:\n"${bullet}"\n\nIMPORTANT: Match the style of the examples exactly — use f/, w/, --, slashes, real numbers, and a unit-specific impact. No generic endings.`
+              }]
+            }],
+            generationConfig: { maxOutputTokens: 256, temperature: 0.7 },
+          }),
         }
-      }
-
+      );
       if (!r.ok) {
         const e = await r.json();
-        if (r.status === 429) {
-          return res.status(429).json({ error: "Gemini rate limit reached. Please wait 30 seconds and try again." });
-        }
         return res.status(500).json({ error: e.error?.message || "Gemini request failed." });
       }
       const d = await r.json();
@@ -219,3 +209,5 @@ ${acronymList}`;
     return res.status(500).json({ error: "Internal server error." });
   }
 };
+
+  

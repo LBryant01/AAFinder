@@ -66,7 +66,7 @@ Use your Google Search grounding to find the MOST CURRENT mission statement, rol
 ${wikiContext}Use everything you find to make the impact statement after "--" as specific and powerful as possible — naming real systems, commands, asset values, or outcomes tied to this unit's actual current mission.`
     : "";
 
-  const systemPrompt = `You are an elite US military EPR (Enlisted Performance Report) bullet writer with 20 years of experience writing bullets that get Airmen and Guardians promoted.
+  const systemPrompt = `You are an elite US military E/OPR (Enlisted/Officer Performance Report) bullet writer with 20 years of experience writing bullets that get Airmen and Guardians promoted. You need to write these bulletes in 120 characters or less.
 
 ${unitInstruction}
 

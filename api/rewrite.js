@@ -169,36 +169,39 @@ ${acronymList}`;
       rewritten = d.content?.[0]?.text?.trim() || "";
 
     } else if (provider === "gemini") {
-      // ── Gemini with Google Search Grounding ────────────────────────────
-      // Search grounding lets Gemini search the web automatically
-      // No extra API keys needed — included in the Gemini API
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) return res.status(500).json({ error: "GEMINI_API_KEY is not set." });
 
-      const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: `${systemPrompt}\n\nRewrite this bullet:\n"${bullet}"\n\nMatch the real examples exactly — contracted verbs, real numbers, f/, w/, --, unit-specific impact. One line only.`
-              }]
-            }],
-            // Google Search grounding — Gemini will search the web automatically
-            tools: [{
-              googleSearch: {}
-            }],
-            generationConfig: {
-              maxOutputTokens: 256,
-              temperature: 0.7,
-            },
-          }),
+      const geminiBody = JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `${systemPrompt}\n\nRewrite this bullet:\n"${bullet}"\n\nMatch the real examples exactly — contracted verbs, real numbers, f/, w/, --, unit-specific impact. One line only.`
+          }]
+        }],
+        tools: [{ googleSearch: {} }],
+        generationConfig: { maxOutputTokens: 256, temperature: 0.7 },
+      });
+
+      // Retry up to 3 times on rate limit with exponential backoff
+      let r;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        r = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: geminiBody }
+        );
+        if (r.status !== 429) break;
+        if (attempt < 3) {
+          const waitMs = attempt * 3000;
+          console.log(`Rate limited. Retrying in ${waitMs}ms (attempt ${attempt}/3)...`);
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
         }
-      );
+      }
+
       if (!r.ok) {
         const e = await r.json();
+        if (r.status === 429) {
+          return res.status(429).json({ error: "Gemini rate limit reached. Please wait 30 seconds and try again." });
+        }
         return res.status(500).json({ error: e.error?.message || "Gemini request failed." });
       }
       const d = await r.json();

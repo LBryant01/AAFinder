@@ -178,7 +178,6 @@ ${acronymList}`;
             text: `${systemPrompt}\n\nRewrite this bullet:\n"${bullet}"\n\nMatch the real examples exactly — contracted verbs, real numbers, f/, w/, --, unit-specific impact. One line only.`
           }]
         }],
-        tools: [{ googleSearch: {} }],
         generationConfig: { maxOutputTokens: 256, temperature: 0.7 },
       });
 

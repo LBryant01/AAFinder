@@ -1,5 +1,3 @@
-// api/rewrite.js — Vercel Serverless Function (ES module)
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -11,9 +9,8 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Missing bullet or acronyms." });
   }
 
-  const provider = (process.env.LLM_PROVIDER || "openai").toLowerCase();
+  const provider = (process.env.LLM_PROVIDER || "genai").toLowerCase();
 
-  // ── Helper: safely parse JSON from LLM output ─────────────────────────────
   function parseLLMJson(text) {
     if (!text) return null;
 
@@ -31,7 +28,6 @@ export default async function handler(req, res) {
     }
   }
 
-  // ── Step 1: Fetch FULL Wikipedia article for the unit ────────────────────
   let unitMission = "";
   let unitMissionFull = "";
 
@@ -59,10 +55,14 @@ export default async function handler(req, res) {
         const fullText = page?.extract || "";
 
         unitMissionFull =
-          fullText.length > 4000 ? fullText.substring(0, 4000) + "..." : fullText;
+          fullText.length > 4000
+            ? fullText.substring(0, 4000) + "..."
+            : fullText;
 
         unitMission =
-          fullText.length > 600 ? fullText.substring(0, 600) + "..." : fullText;
+          fullText.length > 600
+            ? fullText.substring(0, 600) + "..."
+            : fullText;
       }
     } catch (e) {
       console.error("Wikipedia fetch error:", e);
@@ -71,12 +71,10 @@ export default async function handler(req, res) {
     }
   }
 
-  // ── Step 2: Build approved acronym list ──────────────────────────────────
   const acronymList = Object.entries(acronyms)
     .map(([phrase, abbr]) => `"${phrase}" → ${abbr}`)
     .join("\n");
 
-  // ── Step 3: Build prompt ─────────────────────────────────────────────────
   const wikiContext = unitMissionFull
     ? `SUPPLEMENTAL WIKIPEDIA CONTEXT FOR ${unit}:\n${unitMissionFull}\n\n`
     : "";
@@ -173,11 +171,54 @@ The JSON must look exactly like this:
   "narrative": "plain English narrative here"
 }`;
 
-  // ── Step 4: Call the LLM ─────────────────────────────────────────────────
   try {
     let rawOutput = "";
 
-    if (provider === "openai") {
+    if (provider === "genai") {
+      const apiKey = process.env.GENAI_API_KEY;
+      const model = process.env.GENAI_MODEL || "gemini-2.5-flash";
+
+      if (!apiKey) {
+        return res.status(500).json({ error: "GENAI_API_KEY is not set." });
+      }
+
+      const r = await fetch("https://api.genai.mil/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            {
+              role: "system",
+              content: systemPrompt,
+            },
+            {
+              role: "user",
+              content: `Rewrite this bullet and return both a bullet and narrative:\n"${bullet}"`,
+            },
+          ],
+          max_tokens: 700,
+          temperature: 0.7,
+          response_format: {
+            type: "json_object",
+          },
+        }),
+      });
+
+      const d = await r.json().catch(() => ({}));
+
+      if (!r.ok) {
+        return res.status(r.status).json({
+          error: d.error?.message || d.error || "GenAI request failed.",
+          details: d,
+        });
+      }
+
+      rawOutput = d.choices?.[0]?.message?.content?.trim() || "";
+    } else if (provider === "openai") {
       const apiKey = process.env.OPENAI_API_KEY;
 
       if (!apiKey) {
@@ -193,7 +234,10 @@ The JSON must look exactly like this:
         body: JSON.stringify({
           model: "gpt-4o",
           messages: [
-            { role: "system", content: systemPrompt },
+            {
+              role: "system",
+              content: systemPrompt,
+            },
             {
               role: "user",
               content: `Rewrite this bullet and return both a bullet and narrative:\n"${bullet}"`,
@@ -201,18 +245,21 @@ The JSON must look exactly like this:
           ],
           max_tokens: 700,
           temperature: 0.7,
-          response_format: { type: "json_object" },
+          response_format: {
+            type: "json_object",
+          },
         }),
       });
 
+      const d = await r.json().catch(() => ({}));
+
       if (!r.ok) {
-        const e = await r.json();
-        return res
-          .status(500)
-          .json({ error: e.error?.message || "OpenAI request failed." });
+        return res.status(r.status).json({
+          error: d.error?.message || "OpenAI request failed.",
+          details: d,
+        });
       }
 
-      const d = await r.json();
       rawOutput = d.choices?.[0]?.message?.content?.trim() || "";
     } else if (provider === "anthropic") {
       const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -242,14 +289,15 @@ The JSON must look exactly like this:
         }),
       });
 
+      const d = await r.json().catch(() => ({}));
+
       if (!r.ok) {
-        const e = await r.json();
-        return res
-          .status(500)
-          .json({ error: e.error?.message || "Anthropic request failed." });
+        return res.status(r.status).json({
+          error: d.error?.message || "Anthropic request failed.",
+          details: d,
+        });
       }
 
-      const d = await r.json();
       rawOutput = d.content?.[0]?.text?.trim() || "";
     } else if (provider === "gemini") {
       const apiKey = process.env.GEMINI_API_KEY;
@@ -262,7 +310,9 @@ The JSON must look exactly like this:
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             contents: [
               {
@@ -292,23 +342,26 @@ The narrative must be plain English from a supervisor's perspective.`,
         }
       );
 
+      const d = await r.json().catch(() => ({}));
+
       if (!r.ok) {
-        const e = await r.json();
-        return res
-          .status(500)
-          .json({ error: e.error?.message || "Gemini request failed." });
+        return res.status(r.status).json({
+          error: d.error?.message || "Gemini request failed.",
+          details: d,
+        });
       }
 
-      const d = await r.json();
       rawOutput = d.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
     } else {
-      return res
-        .status(500)
-        .json({ error: `Unknown LLM_PROVIDER: "${provider}"` });
+      return res.status(500).json({
+        error: `Unknown LLM_PROVIDER: "${provider}"`,
+      });
     }
 
     if (!rawOutput) {
-      return res.status(500).json({ error: "LLM returned empty response." });
+      return res.status(500).json({
+        error: "LLM returned empty response.",
+      });
     }
 
     const parsed = parseLLMJson(rawOutput);
@@ -331,6 +384,8 @@ The narrative must be plain English from a supervisor's perspective.`,
     });
   } catch (err) {
     console.error("Rewrite error:", err);
-    return res.status(500).json({ error: "Internal server error." });
+    return res.status(500).json({
+      error: "Internal server error.",
+    });
   }
 }

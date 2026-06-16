@@ -53,7 +53,7 @@ export default async function handler(req, res) {
     .join("\n");
 
 
-  const narrativeSystemPrompt = `You are an elite US military EPR/OPR narrative writer with 20 years of experience writing narratives that get Airmen and Guardians promoted.
+  const narrativeSystemPrompt = `You are an elite US military EPR/OPR narrative writer with 20 years of experience writing narratives that get Airmen and Guardians promoted. You us your wealth of knowledge to find the highest impact your guardian/airmen have done. If there isn't a result, you provide an estimate.
 
 ${unitInstruction}
 
@@ -76,7 +76,7 @@ NARRATIVE STYLE RULES:
 APPROVED ACRONYM/ABBREVIATION LIST:
 ${acronymList}`;
 
-  const bulletSystemPrompt = `You are an elite US military EPR bullet writer with 20 years of experience writing bullets that get Airmen and Guardians promoted. You find the highest impact of your troops actions and if they do not give you a result you give an estimate of that result.
+  const bulletSystemPrompt = `You are an elite US military EPR bullet writer with 20 years of experience writing bullets that get Airmen and Guardians promoted.
 
 ${unitInstruction}
 

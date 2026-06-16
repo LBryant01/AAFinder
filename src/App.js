@@ -11,11 +11,27 @@ export default function App() {
   const [result, setResult] = useState("");
   const [page, setPage] = useState(false);
   const [tng, setTng] = useState(false);
-  const [rewritten, setRewritten] = useState("");
+
+  // Separate AI outputs
+  const [bulletOutput, setBulletOutput] = useState("");
+  const [narrativeOutput, setNarrativeOutput] = useState("");
+
   const [unitMission, setUnitMission] = useState("");
   const [isRewriting, setIsRewriting] = useState(false);
   const [rewriteError, setRewriteError] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [copiedBullet, setCopiedBullet] = useState(false);
+  const [copiedNarrative, setCopiedNarrative] = useState(false);
+
+  const dictionaryToUse = tng ? ReverseTng : dictionary;
+
+  const clearRewriteOutputs = () => {
+    setBulletOutput("");
+    setNarrativeOutput("");
+    setUnitMission("");
+    setRewriteError("");
+    setCopiedBullet(false);
+    setCopiedNarrative(false);
+  };
 
   const handleClick = () => {
     window.location.href = "https://londle.vercel.app/";
@@ -24,74 +40,66 @@ export default function App() {
   const handleTng = () => {
     setTng((prev) => !prev);
     setResult("");
-    setRewritten("");
-    setUnitMission("");
-    setRewriteError("");
+    clearRewriteOutputs();
   };
 
   const PageChange = () => {
     setPage((prev) => !prev);
-    setRewritten("");
-    setUnitMission("");
-    setRewriteError("");
+    clearRewriteOutputs();
   };
 
   const checkAcronyms = (inputText, dict) => {
     if (!inputText) return;
 
-    // Normalize: replace double hyphens, then clean punctuation
     const cleanSentence = inputText.replace(/--/g, " ");
     const upperSentence = cleanSentence.toUpperCase();
 
-    // Split into individual words, strip punctuation from each
     const inputWords = upperSentence
       .split(/\s+/)
       .map((word) => word.replace(/[;:.,!—\-\/\\]/g, ""))
       .filter(Boolean);
 
-    const exactMatches = new Set();   // full phrase found in sentence
-    const wordMatches = new Set();    // individual word exact key match
-    const possibleMatches = new Set(); // prefix-based partial matches
+    const exactMatches = new Set();
+    const wordMatches = new Set();
+    const possibleMatches = new Set();
 
-    // 1. Check if entire sentence is a key
     if (dict.hasOwnProperty(upperSentence)) {
       setResult(`Possible Acronym(s):\n${cleanSentence}: ${dict[upperSentence]}`);
       return;
     }
 
-    // 2. Check every dictionary key against the full sentence (phrase match)
     Object.keys(dict).forEach((key) => {
       if (upperSentence.includes(key.toUpperCase())) {
         exactMatches.add(`${key}: ${dict[key]}`);
       }
     });
 
-    // 3. Check every individual input word as an exact dictionary key
     inputWords.forEach((word) => {
       Object.keys(dict).forEach((key) => {
-        // Match single-word keys exactly
         if (key.toUpperCase() === word) {
           wordMatches.add(`${key}: ${dict[key]}`);
         }
       });
     });
 
-    // 4. Prefix matching — each word checked against start of each key
-    //    Use longer prefix (up to 5 chars) for better precision
     inputWords.forEach((word) => {
-      if (word.length < 3) return; // skip very short words like "a", "of"
+      if (word.length < 3) return;
+
       const prefix = word.substring(0, Math.min(word.length, 5));
+
       Object.keys(dict).forEach((key) => {
         const keyUpper = key.toUpperCase();
-        // Only match start of first word in multi-word keys
         const firstKeyWord = keyUpper.split(" ")[0];
-        if (firstKeyWord.startsWith(prefix) && !exactMatches.has(`${key}: ${dict[key]}`)) {
+
+        if (
+          firstKeyWord.startsWith(prefix) &&
+          !exactMatches.has(`${key}: ${dict[key]}`)
+        ) {
           possibleMatches.add(`${key}: ${dict[key]}`);
         }
       });
     });
 
-    // Combine all matches — exact first, then word, then possible
     const allMatches = [
       ...Array.from(exactMatches),
       ...Array.from(wordMatches).filter((m) => !exactMatches.has(m)),
@@ -109,11 +117,9 @@ export default function App() {
 
   const handleRewrite = async () => {
     if (!user.trim()) return;
+
     setIsRewriting(true);
-    setRewritten("");
-    setUnitMission("");
-    setRewriteError("");
-    setCopied(false);
+    clearRewriteOutputs();
 
     const apiBase = process.env.REACT_APP_API_URL || "";
 
@@ -133,7 +139,8 @@ export default function App() {
       if (!response.ok) {
         setRewriteError(data.error || "Rewrite failed. Please try again.");
       } else {
-        setRewritten(data.rewritten);
+        setBulletOutput(data.bullet || data.rewritten || "");
+        setNarrativeOutput(data.narrative || "");
         setUnitMission(data.unitMission || "");
       }
     } catch (err) {
@@ -143,13 +150,17 @@ export default function App() {
     }
   };
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(rewritten);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopyBullet = () => {
+    navigator.clipboard.writeText(bulletOutput);
+    setCopiedBullet(true);
+    setTimeout(() => setCopiedBullet(false), 2000);
   };
 
-  const dictionaryToUse = tng ? ReverseTng : dictionary;
+  const handleCopyNarrative = () => {
+    navigator.clipboard.writeText(narrativeOutput);
+    setCopiedNarrative(true);
+    setTimeout(() => setCopiedNarrative(false), 2000);
+  };
 
   return (
     <div className="app-container">
@@ -158,6 +169,7 @@ export default function App() {
           ? `Reverse Acronym Decoder${tng ? " STARCOM" : " CFC"}`
           : "Acronym/Abbreviation Finder"}
       </h1>
+
       <Analytics />
 
       {page ? (
@@ -166,14 +178,13 @@ export default function App() {
         <>
           <p>
             Improve your EPR bullet's conciseness. Paste your bullet below to
-            find acronyms, or enter your unit and click <strong>✦ Rewrite</strong> to
-            let AI suggest an improved bullet — tied to your unit's mission and CONUS
-            impact — using only approved acronyms.
+            find acronyms, or enter your unit and click <strong>✦ Rewrite</strong>{" "}
+            to let AI suggest an improved bullet and narrative tied to your
+            unit's mission and impact using only approved acronyms.
           </p>
 
-          {/* Unit input */}
           <div className="unit-input-group">
-            <label className="unit-label">Unit (optional — for AI Rewrite)</label>
+            <label className="unit-label">Unit optional — for AI Rewrite</label>
             <input
               className="unit-input"
               type="text"
@@ -181,22 +192,17 @@ export default function App() {
               value={unit}
               onChange={(e) => {
                 setUnit(e.target.value);
-                setRewritten("");
-                setUnitMission("");
-                setRewriteError("");
+                clearRewriteOutputs();
               }}
             />
           </div>
 
-          {/* Bullet textarea */}
           <textarea
             placeholder="Paste your bullet here..."
             value={user}
             onChange={(e) => {
               setUser(e.target.value);
-              setRewritten("");
-              setUnitMission("");
-              setRewriteError("");
+              clearRewriteOutputs();
               setResult("");
             }}
           />
@@ -205,6 +211,7 @@ export default function App() {
             <button onClick={() => checkAcronyms(user, dictionaryToUse)}>
               Find Acronyms
             </button>
+
             <button
               className="rewrite-btn"
               onClick={handleRewrite}
@@ -218,28 +225,36 @@ export default function App() {
 
           {result && <div className="result">{result}</div>}
 
-          {/* Unit mission context */}
           {unitMission && (
             <div className="mission-context">
-              <div className="mission-label">Unit Mission (via Wikipedia)</div>
+              <div className="mission-label">Unit Mission via Wikipedia</div>
               <div className="mission-text">{unitMission}</div>
             </div>
           )}
 
-          {/* AI rewrite result */}
-          {rewritten && (
+          {bulletOutput && (
             <div className="rewrite-result">
-              <div className="rewrite-label">AI-Suggested Rewrite</div>
-              <div className="rewrite-text">{rewritten}</div>
-              <button className="copy-btn" onClick={handleCopy}>
-                {copied ? "Copied!" : "Copy"}
+              <div className="rewrite-label">AI-Suggested Bullet</div>
+              <div className="rewrite-text">{bulletOutput}</div>
+
+              <button className="copy-btn" onClick={handleCopyBullet}>
+                {copiedBullet ? "Copied!" : "Copy Bullet"}
               </button>
             </div>
           )}
 
-          {rewriteError && (
-            <div className="rewrite-error">{rewriteError}</div>
+          {narrativeOutput && (
+            <div className="rewrite-result">
+              <div className="rewrite-label">AI-Suggested Narrative</div>
+              <div className="rewrite-text">{narrativeOutput}</div>
+
+              <button className="copy-btn" onClick={handleCopyNarrative}>
+                {copiedNarrative ? "Copied!" : "Copy Narrative"}
+              </button>
+            </div>
           )}
+
+          {rewriteError && <div className="rewrite-error">{rewriteError}</div>}
         </>
       )}
 

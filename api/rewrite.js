@@ -9,8 +9,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Missing bullet or acronyms." });
   }
 
-  const provider = (process.env.LLM_PROVIDER || "genai").toLowerCase();
-
+  // ── Helper: safely parse JSON from LLM output ─────────────────────────────
   function parseLLMJson(text) {
     if (!text) return null;
 
@@ -28,6 +27,7 @@ export default async function handler(req, res) {
     }
   }
 
+  // ── Step 1: Fetch FULL Wikipedia article for the unit ────────────────────
   let unitMission = "";
   let unitMissionFull = "";
 
@@ -71,10 +71,12 @@ export default async function handler(req, res) {
     }
   }
 
+  // ── Step 2: Build approved acronym list ──────────────────────────────────
   const acronymList = Object.entries(acronyms)
     .map(([phrase, abbr]) => `"${phrase}" → ${abbr}`)
     .join("\n");
 
+  // ── Step 3: Build prompt ─────────────────────────────────────────────────
   const wikiContext = unitMissionFull
     ? `SUPPLEMENTAL WIKIPEDIA CONTEXT FOR ${unit}:\n${unitMissionFull}\n\n`
     : "";
@@ -83,9 +85,9 @@ export default async function handler(req, res) {
     unit && unit.trim()
       ? `The member's unit is: ${unit}
 
-Use your Google Search grounding to find the MOST CURRENT mission statement, roles, and strategic responsibilities of "${unit}" from official .mil websites, press releases, or news. Prioritize what you find online over the Wikipedia context below.
+Use the provided unit context to understand the mission, roles, systems, and strategic responsibilities of "${unit}". If the context is incomplete, make the impact specific to the unit type without inventing fake facts.
 
-${wikiContext}Use everything you find to make the impact statement after "--" as specific and powerful as possible — naming real systems, commands, asset values, or outcomes tied to this unit's actual current mission.`
+${wikiContext}Use the available unit context to make the impact statement after "--" as specific and powerful as possible — naming systems, commands, asset values, or outcomes tied to this unit's actual mission.`
       : "";
 
   const systemPrompt = `You are an elite US military E/OPR (Enlisted/Officer Performance Report) bullet writer with 20 years of experience writing bullets that get Airmen and Guardians promoted.
@@ -171,196 +173,61 @@ The JSON must look exactly like this:
   "narrative": "plain English narrative here"
 }`;
 
+  // ── Step 4: Call the LLM through api.genai.mil ────────────────────────────
   try {
-    let rawOutput = "";
+    const apiKey = process.env.GENAI_API_KEY;
 
-    if (provider === "genai") {
-      const apiKey = process.env.GENAI_API_KEY;
-      const model = process.env.GENAI_MODEL || "gemini-2.5-flash";
-
-      if (!apiKey) {
-        return res.status(500).json({ error: "GENAI_API_KEY is not set." });
-      }
-
-      const r = await fetch("https://api.genai.mil/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            {
-              role: "system",
-              content: systemPrompt,
-            },
-            {
-              role: "user",
-              content: `Rewrite this bullet and return both a bullet and narrative:\n"${bullet}"`,
-            },
-          ],
-          max_tokens: 700,
-          temperature: 0.7,
-          response_format: {
-            type: "json_object",
-          },
-        }),
+    if (!apiKey) {
+      return res.status(500).json({
+        error: "GENAI_API_KEY is not set.",
       });
+    }
 
-      const d = await r.json().catch(() => ({}));
-
-      if (!r.ok) {
-        return res.status(r.status).json({
-          error: d.error?.message || d.error || "GenAI request failed.",
-          details: d,
-        });
-      }
-
-      rawOutput = d.choices?.[0]?.message?.content?.trim() || "";
-    } else if (provider === "openai") {
-      const apiKey = process.env.OPENAI_API_KEY;
-
-      if (!apiKey) {
-        return res.status(500).json({ error: "OPENAI_API_KEY is not set." });
-      }
-
-      const r = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          messages: [
-            {
-              role: "system",
-              content: systemPrompt,
-            },
-            {
-              role: "user",
-              content: `Rewrite this bullet and return both a bullet and narrative:\n"${bullet}"`,
-            },
-          ],
-          max_tokens: 700,
-          temperature: 0.7,
-          response_format: {
-            type: "json_object",
-          },
-        }),
-      });
-
-      const d = await r.json().catch(() => ({}));
-
-      if (!r.ok) {
-        return res.status(r.status).json({
-          error: d.error?.message || "OpenAI request failed.",
-          details: d,
-        });
-      }
-
-      rawOutput = d.choices?.[0]?.message?.content?.trim() || "";
-    } else if (provider === "anthropic") {
-      const apiKey = process.env.ANTHROPIC_API_KEY;
-
-      if (!apiKey) {
-        return res.status(500).json({ error: "ANTHROPIC_API_KEY is not set." });
-      }
-
-      const r = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 700,
-          temperature: 0.7,
-          system: systemPrompt,
-          messages: [
-            {
-              role: "user",
-              content: `Rewrite this bullet and return both a bullet and narrative:\n"${bullet}"`,
-            },
-          ],
-        }),
-      });
-
-      const d = await r.json().catch(() => ({}));
-
-      if (!r.ok) {
-        return res.status(r.status).json({
-          error: d.error?.message || "Anthropic request failed.",
-          details: d,
-        });
-      }
-
-      rawOutput = d.content?.[0]?.text?.trim() || "";
-    } else if (provider === "gemini") {
-      const apiKey = process.env.GEMINI_API_KEY;
-
-      if (!apiKey) {
-        return res.status(500).json({ error: "GEMINI_API_KEY is not set." });
-      }
-
-      const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: `${systemPrompt}
+    const r = await fetch("https://api.genai.mil/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gemini-2.5-flash",
+        messages: [
+          {
+            role: "user",
+            content: `${systemPrompt}
 
 Rewrite this bullet and return both a bullet and narrative:
 "${bullet}"
 
-IMPORTANT:
-Return ONLY valid JSON.
-Do not include markdown.
-Do not include code fences.
-The bullet must keep the exact bullet style rules.
-The narrative must be plain English from a supervisor's perspective.`,
-                  },
-                ],
-              },
-            ],
-            generationConfig: {
-              maxOutputTokens: 700,
-              temperature: 0.7,
-              responseMimeType: "application/json",
-            },
-          }),
-        }
-      );
+Return ONLY valid JSON in this exact shape:
+{
+  "bullet": "one bullet here",
+  "narrative": "plain English narrative here"
+}`,
+          },
+        ],
+        max_tokens: 700,
+        temperature: 0.7,
+      }),
+    });
 
-      const d = await r.json().catch(() => ({}));
+    const d = await r.json().catch(() => ({}));
 
-      if (!r.ok) {
-        return res.status(r.status).json({
-          error: d.error?.message || "Gemini request failed.",
-          details: d,
-        });
-      }
+    if (!r.ok) {
+      console.error("GenAI API error:", d);
 
-      rawOutput = d.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
-    } else {
-      return res.status(500).json({
-        error: `Unknown LLM_PROVIDER: "${provider}"`,
+      return res.status(r.status).json({
+        error: d.error?.message || d.error || "GenAI request failed.",
+        details: d,
       });
     }
+
+    const rawOutput = d.choices?.[0]?.message?.content?.trim() || "";
 
     if (!rawOutput) {
       return res.status(500).json({
         error: "LLM returned empty response.",
+        details: d,
       });
     }
 
@@ -384,8 +251,10 @@ The narrative must be plain English from a supervisor's perspective.`,
     });
   } catch (err) {
     console.error("Rewrite error:", err);
+
     return res.status(500).json({
       error: "Internal server error.",
+      details: err.message,
     });
   }
 }

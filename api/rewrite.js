@@ -76,7 +76,7 @@ NARRATIVE STYLE RULES:
 APPROVED ACRONYM/ABBREVIATION LIST:
 ${acronymList}`;
 
-  const bulletSystemPrompt = `You are an elite US military EPR bullet writer with 20 years of experience writing bullets that get Airmen and Guardians promoted.
+  const bulletSystemPrompt = `You are an elite US military EPR bullet writer with 20 years of experience writing bullets that get Airmen and Guardians promoted. You find the highest impact of your troops actions and if they do not give you a result you give an estimate of that result.
 
 ${unitInstruction}
 

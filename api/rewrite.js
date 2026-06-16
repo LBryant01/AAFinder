@@ -61,7 +61,7 @@ module.exports = async function handler(req, res) {
     : "";
 
 
-  const narrativeSystemPrompt = `You are an elite US military EPR/OPR narrative writer with 20 years of experience writing narratives that get Airmen and Guardians promoted.
+  const narrativeSystemPrompt = `You are an elite US military EPR/OPR narrative writer with 20 years of experience writing narratives that get Airmen and Guardians promoted. You use this extensive knowledge to find the highest impact possible (I.E. Your troop says I set up chair for the wing you turn that to acquisition of $5000 of valuables for critical wing event.
 
 ${unitInstruction}
 

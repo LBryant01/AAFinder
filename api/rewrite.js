@@ -1,6 +1,5 @@
 // api/rewrite.js — Vercel Serverless Function (ES module)
 
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -14,32 +13,56 @@ export default async function handler(req, res) {
 
   const provider = (process.env.LLM_PROVIDER || "openai").toLowerCase();
 
+  // ── Helper: safely parse JSON from LLM output ─────────────────────────────
+  function parseLLMJson(text) {
+    if (!text) return null;
+
+    const cleaned = text
+      .trim()
+      .replace(/^```json/i, "")
+      .replace(/^```/i, "")
+      .replace(/```$/i, "")
+      .trim();
+
+    try {
+      return JSON.parse(cleaned);
+    } catch {
+      return null;
+    }
+  }
+
   // ── Step 1: Fetch FULL Wikipedia article for the unit ────────────────────
   let unitMission = "";
   let unitMissionFull = "";
+
   if (unit && unit.trim()) {
     try {
-      const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(unit.trim())}&format=json&origin=*`;
+      const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(
+        unit.trim()
+      )}&format=json&origin=*`;
+
       const searchRes = await fetch(searchUrl);
       const searchData = await searchRes.json();
       const topResult = searchData?.query?.search?.[0];
 
       if (topResult) {
         const pageTitle = topResult.title;
-        const extractUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(pageTitle)}&prop=extracts&explaintext=true&format=json&origin=*`;
+
+        const extractUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(
+          pageTitle
+        )}&prop=extracts&explaintext=true&format=json&origin=*`;
+
         const extractRes = await fetch(extractUrl);
         const extractData = await extractRes.json();
         const pages = extractData?.query?.pages;
         const page = pages ? Object.values(pages)[0] : null;
         const fullText = page?.extract || "";
 
-        unitMissionFull = fullText.length > 4000
-          ? fullText.substring(0, 4000) + "..."
-          : fullText;
+        unitMissionFull =
+          fullText.length > 4000 ? fullText.substring(0, 4000) + "..." : fullText;
 
-        unitMission = fullText.length > 600
-          ? fullText.substring(0, 600) + "..."
-          : fullText;
+        unitMission =
+          fullText.length > 600 ? fullText.substring(0, 600) + "..." : fullText;
       }
     } catch (e) {
       console.error("Wikipedia fetch error:", e);
@@ -53,27 +76,37 @@ export default async function handler(req, res) {
     .map(([phrase, abbr]) => `"${phrase}" → ${abbr}`)
     .join("\n");
 
-  // ── Step 3: Build prompt ──────────────────────────────────────────────────
+  // ── Step 3: Build prompt ─────────────────────────────────────────────────
   const wikiContext = unitMissionFull
     ? `SUPPLEMENTAL WIKIPEDIA CONTEXT FOR ${unit}:\n${unitMissionFull}\n\n`
     : "";
 
-  const unitInstruction = unit && unit.trim()
-    ? `The member's unit is: ${unit}
+  const unitInstruction =
+    unit && unit.trim()
+      ? `The member's unit is: ${unit}
 
 Use your Google Search grounding to find the MOST CURRENT mission statement, roles, and strategic responsibilities of "${unit}" from official .mil websites, press releases, or news. Prioritize what you find online over the Wikipedia context below.
 
 ${wikiContext}Use everything you find to make the impact statement after "--" as specific and powerful as possible — naming real systems, commands, asset values, or outcomes tied to this unit's actual current mission.`
-    : "";
+      : "";
 
-  const systemPrompt = `You are an elite US military E/OPR (Enlisted/Officer Performance Report) bullet writer with 20 years of experience writing bullets that get Airmen and Guardians promoted. You need to write these bulletes in 120 characters or less.
+  const systemPrompt = `You are an elite US military E/OPR (Enlisted/Officer Performance Report) bullet writer with 20 years of experience writing bullets that get Airmen and Guardians promoted.
 
 ${unitInstruction}
 
 YOUR TASK:
-Rewrite the given EPR bullet to match the style, density, and impact of the real examples below.
+Rewrite the given EPR bullet into TWO required outputs:
 
-REAL BULLET EXAMPLES — match this style exactly:
+1. bullet
+2. narrative
+
+You must always generate BOTH.
+
+The bullet must match the style, density, and impact of the real examples below.
+
+The narrative must explain the same achievement in plain English, as if the member's supervisor is telling a short story about how good they are, what they did, and how their actions impacted the unit, mission, command, joint force, nation, or world.
+
+REAL BULLET EXAMPLES — match this style exactly for the bullet:
 - "Accomplished 462 SV special activities; configured bus system/collected analysis data--GPS constellation optimized"
 - "Analyzed crit SACCS outage; ID'd/rpr'd damaged wiring <2 hrs--restored NC2 comm link w/15 Missile Alert Facilities"
 - "Author'd GO/FO TBMW codeword proc; expedit'd vital missile info to USFJ/5AF CC--reduc'd notification time 20%"
@@ -95,32 +128,61 @@ REAL BULLET EXAMPLES — match this style exactly:
 - "Hosted enl conf; raised $28K f/4 NCOs to achieve edu goal/spt'd recruit of 20 amn--rec'd 5 qtrly awds/2 sq/CC LOAs"
 - "Created inaugural prog; coord'd w/8 sqs/5 mths/lvl'd social barrier f/569 jr enl--lauded by 9 RW & MSG/awarded BTZ!"
 
-STYLE RULES — follow every one:
+BULLET STYLE RULES — follow every one:
+- Bullet must be 120 characters or less.
 - Contract verbs: "Author'd", "ID'd", "rpr'd", "Conduct'd", "Engr'd", "Coord'd", "Trn'd", "Validat'd", "Accompl'd", "Deliver'd"
 - Use "f/" for "for", "w/" for "with", "<" for "less than", "&" for "and"
-- Use "--" (double dash) before the impact statement
+- Use "--" double dash before the impact statement
 - Use "/" to chain related items
 - Include REAL numbers wherever possible — people, dollars, percentages, time, rankings
-- Drop all articles ("a", "an", "the") everywhere possible
+- Drop all articles: "a", "an", "the"
 - ONE line only — dense and packed
-- Use "!" only for exceptional results (BTZ, DG, OTY, #1 ranking)
+- Use "!" only for exceptional results: BTZ, DG, OTY, #1 ranking
 - Impact after "--" must name a specific system, command, asset value, or outcome tied to THIS unit's actual mission
 
-BANNED endings — never write these:
+NARRATIVE STYLE RULES:
+- Write in plain English.
+- Sound like a supervisor describing the member's performance.
+- Explain what the member did, why it mattered, and who or what benefited.
+- Make it read like a strong performance report narrative, not casual praise.
+- Do NOT use bullet abbreviations like f/, w/, rpr'd, trn'd, or "--".
+- Do NOT copy the bullet format.
+- Keep it professional, specific, and mission-focused.
+- Use numbers, systems, commands, dollars, lives, assets, or mission outcomes when possible.
+- 3 to 5 sentences.
+- The narrative must describe the same achievement and impact as the bullet, but written naturally.
+- Avoid vague praise like "great job", "hard worker", or "valuable member" unless supported by specific action and impact.
+
+BANNED endings — never write these in either output:
 - "for CONUS defense" / "for national security" / "for the mission"
 - "ensured unit readiness" / "supported unit operations"
 - "enhanced mission capability" / "improved overall effectiveness"
 
 APPROVED ACRONYM/ABBREVIATION LIST:
-${acronymList}`;
+${acronymList}
+
+OUTPUT FORMAT:
+Return ONLY valid JSON.
+Do not include markdown.
+Do not include code fences.
+Do not include extra explanation.
+
+The JSON must look exactly like this:
+{
+  "bullet": "one bullet here",
+  "narrative": "plain English narrative here"
+}`;
 
   // ── Step 4: Call the LLM ─────────────────────────────────────────────────
   try {
-    let rewritten = "";
+    let rawOutput = "";
 
     if (provider === "openai") {
       const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey) return res.status(500).json({ error: "OPENAI_API_KEY is not set." });
+
+      if (!apiKey) {
+        return res.status(500).json({ error: "OPENAI_API_KEY is not set." });
+      }
 
       const r = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -132,22 +194,32 @@ ${acronymList}`;
           model: "gpt-4o",
           messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: `Rewrite this bullet:\n"${bullet}"` },
+            {
+              role: "user",
+              content: `Rewrite this bullet and return both a bullet and narrative:\n"${bullet}"`,
+            },
           ],
-          max_tokens: 256,
+          max_tokens: 700,
           temperature: 0.7,
+          response_format: { type: "json_object" },
         }),
       });
+
       if (!r.ok) {
         const e = await r.json();
-        return res.status(500).json({ error: e.error?.message || "OpenAI request failed." });
+        return res
+          .status(500)
+          .json({ error: e.error?.message || "OpenAI request failed." });
       }
-      const d = await r.json();
-      rewritten = d.choices?.[0]?.message?.content?.trim() || "";
 
+      const d = await r.json();
+      rawOutput = d.choices?.[0]?.message?.content?.trim() || "";
     } else if (provider === "anthropic") {
       const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY is not set." });
+
+      if (!apiKey) {
+        return res.status(500).json({ error: "ANTHROPIC_API_KEY is not set." });
+      }
 
       const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -158,21 +230,33 @@ ${acronymList}`;
         },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
-          max_tokens: 256,
+          max_tokens: 700,
+          temperature: 0.7,
           system: systemPrompt,
-          messages: [{ role: "user", content: `Rewrite this bullet:\n"${bullet}"` }],
+          messages: [
+            {
+              role: "user",
+              content: `Rewrite this bullet and return both a bullet and narrative:\n"${bullet}"`,
+            },
+          ],
         }),
       });
+
       if (!r.ok) {
         const e = await r.json();
-        return res.status(500).json({ error: e.error?.message || "Anthropic request failed." });
+        return res
+          .status(500)
+          .json({ error: e.error?.message || "Anthropic request failed." });
       }
-      const d = await r.json();
-      rewritten = d.content?.[0]?.text?.trim() || "";
 
+      const d = await r.json();
+      rawOutput = d.content?.[0]?.text?.trim() || "";
     } else if (provider === "gemini") {
       const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) return res.status(500).json({ error: "GEMINI_API_KEY is not set." });
+
+      if (!apiKey) {
+        return res.status(500).json({ error: "GEMINI_API_KEY is not set." });
+      }
 
       const r = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`,
@@ -180,33 +264,73 @@ ${acronymList}`;
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: `${systemPrompt}\n\nRewrite this bullet:\n"${bullet}"\n\nIMPORTANT: Match the style of the examples exactly — use f/, w/, --, slashes, real numbers, and a unit-specific impact. No generic endings.`
-              }]
-            }],
-            generationConfig: { maxOutputTokens: 256, temperature: 0.7 },
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `${systemPrompt}
+
+Rewrite this bullet and return both a bullet and narrative:
+"${bullet}"
+
+IMPORTANT:
+Return ONLY valid JSON.
+Do not include markdown.
+Do not include code fences.
+The bullet must keep the exact bullet style rules.
+The narrative must be plain English from a supervisor's perspective.`,
+                  },
+                ],
+              },
+            ],
+            generationConfig: {
+              maxOutputTokens: 700,
+              temperature: 0.7,
+              responseMimeType: "application/json",
+            },
           }),
         }
       );
+
       if (!r.ok) {
         const e = await r.json();
-        return res.status(500).json({ error: e.error?.message || "Gemini request failed." });
+        return res
+          .status(500)
+          .json({ error: e.error?.message || "Gemini request failed." });
       }
-      const d = await r.json();
-      rewritten = d.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
 
+      const d = await r.json();
+      rawOutput = d.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
     } else {
-      return res.status(500).json({ error: `Unknown LLM_PROVIDER: "${provider}"` });
+      return res
+        .status(500)
+        .json({ error: `Unknown LLM_PROVIDER: "${provider}"` });
     }
 
-    if (!rewritten) return res.status(500).json({ error: "LLM returned empty response." });
+    if (!rawOutput) {
+      return res.status(500).json({ error: "LLM returned empty response." });
+    }
 
-    return res.status(200).json({ rewritten, unitMission });
+    const parsed = parseLLMJson(rawOutput);
 
+    if (!parsed?.bullet || !parsed?.narrative) {
+      return res.status(500).json({
+        error: "LLM did not return the expected JSON format.",
+        rawOutput,
+      });
+    }
+
+    return res.status(200).json({
+      bullet: parsed.bullet,
+      narrative: parsed.narrative,
+
+      // Backwards compatibility if your frontend currently expects "rewritten"
+      rewritten: parsed.bullet,
+
+      unitMission,
+    });
   } catch (err) {
     console.error("Rewrite error:", err);
     return res.status(500).json({ error: "Internal server error." });
   }
-};
-
+}

@@ -1,12 +1,12 @@
 // api/rewrite.js — Vercel Serverless Function (ES module)
 
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { bullet, acronyms, unit } = req.body;
+  const { bullet, acronyms, unit, outputMode } = req.body;
+  const isNarrative = outputMode === "narrative";
 
   if (!bullet || !acronyms) {
     return res.status(400).json({ error: "Missing bullet or acronyms." });
@@ -14,9 +14,10 @@ export default async function handler(req, res) {
 
   const provider = (process.env.LLM_PROVIDER || "openai").toLowerCase();
 
-  // ── Step 1: Fetch FULL Wikipedia article for the unit ────────────────────
+  // ── Step 1: Wikipedia as baseline context ────────────────────────────────
   let unitMission = "";
   let unitMissionFull = "";
+
   if (unit && unit.trim()) {
     try {
       const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(unit.trim())}&format=json&origin=*`;
@@ -33,8 +34,8 @@ export default async function handler(req, res) {
         const page = pages ? Object.values(pages)[0] : null;
         const fullText = page?.extract || "";
 
-        unitMissionFull = fullText.length > 4000
-          ? fullText.substring(0, 4000) + "..."
+        unitMissionFull = fullText.length > 3000
+          ? fullText.substring(0, 3000) + "..."
           : fullText;
 
         unitMission = fullText.length > 600
@@ -43,8 +44,6 @@ export default async function handler(req, res) {
       }
     } catch (e) {
       console.error("Wikipedia fetch error:", e);
-      unitMission = "";
-      unitMissionFull = "";
     }
   }
 
@@ -55,18 +54,34 @@ export default async function handler(req, res) {
 
   // ── Step 3: Build prompt ──────────────────────────────────────────────────
   const wikiContext = unitMissionFull
-    ? `SUPPLEMENTAL WIKIPEDIA CONTEXT FOR ${unit}:\n${unitMissionFull}\n\n`
+    ? `UNIT WIKIPEDIA CONTEXT FOR ${unit}:\n${unitMissionFull}\n\n`
     : "";
 
   const unitInstruction = unit && unit.trim()
-    ? `The member's unit is: ${unit}
-
-Use your Google Search grounding to find the MOST CURRENT mission statement, roles, and strategic responsibilities of "${unit}" from official .mil websites, press releases, or news. Prioritize what you find online over the Wikipedia context below.
-
-${wikiContext}Use everything you find to make the impact statement after "--" as specific and powerful as possible — naming real systems, commands, asset values, or outcomes tied to this unit's actual current mission.`
+    ? `The member's unit is: ${unit}\n\n${wikiContext}Use the unit context above to make the impact as specific and powerful as possible — naming real systems, commands, asset values, or outcomes tied to this unit's actual mission.`
     : "";
 
-  const systemPrompt = `You are an elite US military E/OPR (Enlisted/Officer Performance Report) bullet writer with 20 years of experience writing bullets that get Airmen and Guardians promoted. You need to write these bulletes in 120 characters or less.
+  const narrativeSystemPrompt = `You are an elite US military EPR/OPR narrative writer with 20 years of experience writing narratives that get Airmen and Guardians promoted.
+
+${unitInstruction}
+
+YOUR TASK:
+Expand the given bullet or notes into a polished EPR narrative paragraph of 4-6 sentences.
+
+NARRATIVE RULES:
+1. Open with the member's most impactful action or achievement
+2. Describe scope, scale, and complexity — use numbers, people, systems, timeframes
+3. Explain the direct result and its significance to the unit's specific mission
+4. Close with a strong promotion recommendation or senior rater endorsement
+5. Write in third person; be specific — no generic filler phrases
+6. Use approved acronyms from the list below where appropriate
+
+BANNED phrases: "significantly improved", "greatly enhanced", "contributed to mission success", "played a key role"
+
+APPROVED ACRONYM/ABBREVIATION LIST:
+${acronymList}`;
+
+  const bulletSystemPrompt = `You are an elite US military EPR bullet writer with 20 years of experience writing bullets that get Airmen and Guardians promoted.
 
 ${unitInstruction}
 
@@ -95,24 +110,26 @@ REAL BULLET EXAMPLES — match this style exactly:
 - "Hosted enl conf; raised $28K f/4 NCOs to achieve edu goal/spt'd recruit of 20 amn--rec'd 5 qtrly awds/2 sq/CC LOAs"
 - "Created inaugural prog; coord'd w/8 sqs/5 mths/lvl'd social barrier f/569 jr enl--lauded by 9 RW & MSG/awarded BTZ!"
 
-STYLE RULES — follow every one:
+STYLE RULES:
 - Contract verbs: "Author'd", "ID'd", "rpr'd", "Conduct'd", "Engr'd", "Coord'd", "Trn'd", "Validat'd", "Accompl'd", "Deliver'd"
 - Use "f/" for "for", "w/" for "with", "<" for "less than", "&" for "and"
 - Use "--" (double dash) before the impact statement
 - Use "/" to chain related items
-- Include REAL numbers wherever possible — people, dollars, percentages, time, rankings
+- Include REAL numbers wherever possible
 - Drop all articles ("a", "an", "the") everywhere possible
 - ONE line only — dense and packed
 - Use "!" only for exceptional results (BTZ, DG, OTY, #1 ranking)
 - Impact after "--" must name a specific system, command, asset value, or outcome tied to THIS unit's actual mission
 
-BANNED endings — never write these:
-- "for CONUS defense" / "for national security" / "for the mission"
-- "ensured unit readiness" / "supported unit operations"
-- "enhanced mission capability" / "improved overall effectiveness"
+BANNED endings: "for CONUS defense" / "for national security" / "for the mission" / "ensured unit readiness" / "enhanced mission capability"
 
 APPROVED ACRONYM/ABBREVIATION LIST:
 ${acronymList}`;
+
+  const systemPrompt = isNarrative ? narrativeSystemPrompt : bulletSystemPrompt;
+  const userMessage = isNarrative
+    ? `Write a narrative paragraph for this bullet/notes:\n"${bullet}"`
+    : `Rewrite this bullet:\n"${bullet}"\n\nMatch the real examples exactly — contracted verbs, real numbers, f/, w/, --, unit-specific impact. One line only.`;
 
   // ── Step 4: Call the LLM ─────────────────────────────────────────────────
   try {
@@ -132,9 +149,9 @@ ${acronymList}`;
           model: "gpt-4o",
           messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: `Rewrite this bullet:\n"${bullet}"` },
+            { role: "user", content: userMessage },
           ],
-          max_tokens: 256,
+          max_tokens: 512,
           temperature: 0.7,
         }),
       });
@@ -158,9 +175,9 @@ ${acronymList}`;
         },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
-          max_tokens: 256,
+          max_tokens: 512,
           system: systemPrompt,
-          messages: [{ role: "user", content: `Rewrite this bullet:\n"${bullet}"` }],
+          messages: [{ role: "user", content: userMessage }],
         }),
       });
       if (!r.ok) {
@@ -174,23 +191,37 @@ ${acronymList}`;
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) return res.status(500).json({ error: "GEMINI_API_KEY is not set." });
 
-      const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: `${systemPrompt}\n\nRewrite this bullet:\n"${bullet}"\n\nIMPORTANT: Match the style of the examples exactly — use f/, w/, --, slashes, real numbers, and a unit-specific impact. No generic endings.`
-              }]
-            }],
-            generationConfig: { maxOutputTokens: 256, temperature: 0.7 },
-          }),
+      const geminiBody = JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `${systemPrompt}
+
+${userMessage}`
+          }]
+        }],
+        generationConfig: { maxOutputTokens: 512, temperature: 0.7 },
+      });
+
+      // Retry up to 3 times on rate limit with exponential backoff
+      let r;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        r = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: geminiBody }
+        );
+        if (r.status !== 429) break;
+        if (attempt < 3) {
+          const waitMs = attempt * 3000;
+          console.log(`Rate limited. Retrying in ${waitMs}ms (attempt ${attempt}/3)...`);
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
         }
-      );
+      }
+
       if (!r.ok) {
         const e = await r.json();
+        if (r.status === 429) {
+          return res.status(429).json({ error: "Gemini rate limit reached. Please wait 30 seconds and try again." });
+        }
         return res.status(500).json({ error: e.error?.message || "Gemini request failed." });
       }
       const d = await r.json();
@@ -209,5 +240,3 @@ ${acronymList}`;
     return res.status(500).json({ error: "Internal server error." });
   }
 };
-
-  

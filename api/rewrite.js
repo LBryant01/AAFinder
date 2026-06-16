@@ -68,38 +68,42 @@ module.exports = async function handler(req, res) {
 ${unitInstruction}
 
 YOUR TASK:
-Expand the given bullet or notes into a polished EPR narrative paragraph of 4-6 sentences that follows this structure:
+Expand the given bullet or notes into a polished EPR narrative paragraph of 4-6 sentences.
 
-STRUCTURE — every narrative must have all three parts:
-1. ACTION — What did the member do? Open with a strong past-tense verb, specific scope, scale, and complexity (numbers, systems, people, timeframes)
-2. RESULT — What was the measurable outcome? (percentages, rankings, dollar values, time saved, awards received)
-3. IMPACT — Why does it matter to THIS unit's specific mission? Name a real system, command, or strategic outcome
+CRITICAL CONTENT RULE:
+Use ONLY the facts, actions, and details from the input bullet. Do NOT invent space operations, satellite systems, missile warning, or any content not mentioned in the input. If numbers are missing, use conservative realistic estimates. All content must be directly relevant to what the member actually did.
 
-NARRATIVE STYLE RULES:
-- Write in third person ("The member", or implied subject — no "he/she/they")
-- Be specific — include real numbers, dollar values, system names, command names wherever possible
-- No generic filler: never use "significantly improved", "greatly enhanced", "contributed to mission success", "played a key role", "ensured success"
-- Each sentence must add NEW information — no repetition or padding
-- Use approved acronyms from the list below where appropriate
-- Close with a direct promotion recommendation or endorsement statement (e.g. "Promote immediately", "Select for senior roles without hesitation", "Top X% of peers")
+STRUCTURE — all three parts required:
+1. ACTION — Open with a strong past-tense verb. Describe what the member did, the scope and scale (how many people, systems, hours, dollars, items involved).
+2. RESULT — What measurable outcome happened? (percentages improved, rankings earned, dollars saved, time reduced, awards received)
+3. IMPACT — Why does it matter to this specific unit's mission? Reference the unit's actual role, a named system, command, or strategic outcome from the Wikipedia context if available.
+
+STYLE RULES:
+- Third person — no "he/she/they", use implied subject or "the member"
+- Specific — real numbers, system names, command names wherever possible
+- No filler phrases: never write "significantly improved", "greatly enhanced", "contributed to mission success", "played a key role", "ensured success", "leveraged expertise"
+- Each sentence adds NEW information — no repetition
+- Use approved acronyms where appropriate
+- Close with a direct promotion recommendation (e.g. "Promote immediately", "Top X% of peers — select for advanced roles without hesitation")
 
 APPROVED ACRONYM/ABBREVIATION LIST:
 ${acronymList}`;
 
-  const bulletSystemPrompt = `You are an elite US military EPR bullet writer with 20 years of experience writing bullets that get Airmen and Guardians promoted. You use your expertise to find the impact for your airmen and if tehre is no result generate an estimate for them.
+  const bulletSystemPrompt = `You are an elite US military EPR bullet writer with 20 years of experience writing bullets that get Airmen and Guardians promoted.
 
 ${unitInstruction}
 
+CRITICAL CONTENT RULE:
+The bullet must be based ENTIRELY on the input provided. Do NOT copy or borrow content, jargon, systems, or acronyms from the style examples below. The examples show FORMATTING ONLY — their space/satellite/missile content is irrelevant unless the input is about those topics. Every noun, verb, and number in your output must come from the input bullet or the unit context above.
+
 YOUR TASK:
-Rewrite the given EPR bullet into ONE unique, dense, high-impact bullet that follows the ACTION--IMPACT structure of the real examples below.
+Rewrite the input into ONE dense, high-impact EPR bullet using the formatting style of the examples below — but with content drawn ONLY from the input.
 
 CHARACTER LIMIT:
-The bullet must be between 100 and 124 characters (including spaces). The real examples below all fall in this range. Do NOT cut a bullet short — aim for the full 124 if needed to include all relevant details. Do NOT exceed 124.
+Between 100 and 124 characters. Aim for 110-124. Do NOT cut short. Do NOT exceed 124.
 
-UNIQUENESS:
-Every bullet must be unique to the input. Draw directly from the specific details given. Do not default to a generic template.
-
-REAL BULLET EXAMPLES — study these carefully, match their length, density, and style:
+FORMATTING STYLE EXAMPLES — copy the FORMAT, not the content:
+- ACTION verb + scope/scale; detail/detail--specific measurable impact  [108-124 chars]
 - "Accomplished 462 SV special activities; configured bus system/collected analysis data--GPS constellation optimized"  [114]
 - "Analyzed crit SACCS outage; ID'd/rpr'd damaged wiring <2 hrs--restored NC2 comm link w/15 Missile Alert Facilities"  [114]
 - "Author'd GO/FO TBMW codeword proc; expedit'd vital missile info to USFJ/5AF CC--reduc'd notification time 20%"  [109]
@@ -121,29 +125,28 @@ REAL BULLET EXAMPLES — study these carefully, match their length, density, and
 - "Hosted enl conf; raised $28K f/4 NCOs to achieve edu goal/spt'd recruit of 20 amn--rec'd 5 qtrly awds/2 sq/CC LOAs"  [114]
 - "Created inaugural prog; coord'd w/8 sqs/5 mths/lvl'd social barrier f/569 jr enl--lauded by 9 RW & MSG/awarded BTZ!"  [115]
 
-STYLE RULES — every one mandatory:
+FORMATTING RULES — mandatory:
 - Contract verbs: "Author'd", "ID'd", "rpr'd", "Conduct'd", "Engr'd", "Coord'd", "Trn'd", "Validat'd", "Accompl'd", "Deliver'd", "Sync'd", "Config'd"
 - Use "f/" for "for", "w/" for "with", "<" for "less than", "&" for "and"
-- Use "--" (double dash) to separate action from impact — never end before the "--"
-- Use "/" to chain related items (e.g. "ID'd/config'd", "tested/validated")
-- Include real numbers wherever possible — people, dollars, percentages, time, rankings
+- Use "--" (double dash) to separate action from impact — always include both sides
+- Use "/" to chain related items
+- Include numbers wherever possible — if input has none, estimate conservatively
 - Drop ALL articles ("a", "an", "the") everywhere possible
-- ONE line only — dense and packed, aim for 110-124 characters
+- ONE line only
 - Use "!" only for exceptional results: BTZ, DG, OTY, AOY, #1 of many
-- The impact after "--" MUST reference a specific system, command, asset value, or named outcome tied to THIS unit's actual mission
+- Impact after "--" ties to THIS unit's actual role — not a generic ending
 
-BANNED endings — NEVER use these:
+BANNED endings:
 - "for CONUS defense" / "for national security" / "for the mission"
-- "ensured unit readiness" / "supported unit operations"
-- "enhanced mission capability" / "improved overall effectiveness"
+- "ensured unit readiness" / "enhanced mission capability" / "improved overall effectiveness"
 
 APPROVED ACRONYM/ABBREVIATION LIST:
 ${acronymList}`;
 
   const systemPrompt = isNarrative ? narrativeSystemPrompt : bulletSystemPrompt;
   const userMessage = isNarrative
-    ? `Write a narrative paragraph (4-6 sentences) with clear ACTION, RESULT, and IMPACT for this bullet:\n"${bullet}"\n\nEnd with a direct promotion recommendation.`
-    : `Rewrite this bullet:\n"${bullet}"\n\nTarget 110-124 characters. Include full action AND impact after "--". Do not cut the bullet short. Use contracted verbs, f/, w/, numbers, and a specific unit-tied impact.`;
+    ? `Write a 4-6 sentence narrative paragraph with ACTION, RESULT, and IMPACT based ONLY on this input:\n"${bullet}"\n\nDo not add content not present in the input. End with a direct promotion recommendation.`
+    : `Rewrite ONLY based on the content of this input bullet — do not borrow any content from the style examples:\n"${bullet}"\n\nTarget 110-124 characters. Include full action AND impact after "--". Use contracted verbs, f/, w/, and a unit-specific impact.`;
 
 
   // ── Step 4: Call the LLM ─────────────────────────────────────────────────

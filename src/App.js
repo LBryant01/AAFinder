@@ -16,7 +16,6 @@ export default function App() {
   const [isRewriting, setIsRewriting] = useState(false);
   const [rewriteError, setRewriteError] = useState("");
   const [copied, setCopied] = useState(false);
-  const [outputMode, setOutputMode] = useState("bullet"); // "bullet" or "narrative"
 
   const handleClick = () => {
     window.location.href = "https://londle.vercel.app/";
@@ -40,48 +39,59 @@ export default function App() {
   const checkAcronyms = (inputText, dict) => {
     if (!inputText) return;
 
+    // Normalize: replace double hyphens, then clean punctuation
     const cleanSentence = inputText.replace(/--/g, " ");
     const upperSentence = cleanSentence.toUpperCase();
 
+    // Split into individual words, strip punctuation from each
     const inputWords = upperSentence
       .split(/\s+/)
       .map((word) => word.replace(/[;:.,!—\-\/\\]/g, ""))
       .filter(Boolean);
 
-    const exactMatches = new Set();
-    const wordMatches = new Set();
-    const possibleMatches = new Set();
+    const exactMatches = new Set();   // full phrase found in sentence
+    const wordMatches = new Set();    // individual word exact key match
+    const possibleMatches = new Set(); // prefix-based partial matches
 
+    // 1. Check if entire sentence is a key
     if (dict.hasOwnProperty(upperSentence)) {
       setResult(`Possible Acronym(s):\n${cleanSentence}: ${dict[upperSentence]}`);
       return;
     }
 
+    // 2. Check every dictionary key against the full sentence (phrase match)
     Object.keys(dict).forEach((key) => {
       if (upperSentence.includes(key.toUpperCase())) {
         exactMatches.add(`${key}: ${dict[key]}`);
       }
     });
 
+    // 3. Check every individual input word as an exact dictionary key
     inputWords.forEach((word) => {
       Object.keys(dict).forEach((key) => {
+        // Match single-word keys exactly
         if (key.toUpperCase() === word) {
           wordMatches.add(`${key}: ${dict[key]}`);
         }
       });
     });
 
+    // 4. Prefix matching — each word checked against start of each key
+    //    Use longer prefix (up to 5 chars) for better precision
     inputWords.forEach((word) => {
-      if (word.length < 3) return;
+      if (word.length < 3) return; // skip very short words like "a", "of"
       const prefix = word.substring(0, Math.min(word.length, 5));
       Object.keys(dict).forEach((key) => {
-        const firstKeyWord = key.toUpperCase().split(" ")[0];
+        const keyUpper = key.toUpperCase();
+        // Only match start of first word in multi-word keys
+        const firstKeyWord = keyUpper.split(" ")[0];
         if (firstKeyWord.startsWith(prefix) && !exactMatches.has(`${key}: ${dict[key]}`)) {
           possibleMatches.add(`${key}: ${dict[key]}`);
         }
       });
     });
 
+    // Combine all matches — exact first, then word, then possible
     const allMatches = [
       ...Array.from(exactMatches),
       ...Array.from(wordMatches).filter((m) => !exactMatches.has(m)),
@@ -115,7 +125,6 @@ export default function App() {
           bullet: user,
           acronyms: dictionaryToUse,
           unit: unit.trim(),
-          outputMode,
         }),
       });
 
@@ -158,8 +167,8 @@ export default function App() {
           <p>
             Improve your EPR bullet's conciseness. Paste your bullet below to
             find acronyms, or enter your unit and click <strong>✦ Rewrite</strong> to
-            let AI suggest an improved bullet or narrative — tied to your unit's
-            mission — using only approved acronyms.
+            let AI suggest an improved bullet — tied to your unit's mission and CONUS
+            impact — using only approved acronyms.
           </p>
 
           {/* Unit input */}
@@ -168,7 +177,7 @@ export default function App() {
             <input
               className="unit-input"
               type="text"
-              placeholder="e.g. 537th Training Squadron, 1st Space Operations Squadron..."
+              placeholder="e.g. 319th Combat Training Squadron, 1st Space Operations Squadron..."
               value={unit}
               onChange={(e) => {
                 setUnit(e.target.value);
@@ -179,32 +188,9 @@ export default function App() {
             />
           </div>
 
-          {/* Output mode toggle */}
-          <div className="mode-toggle-group">
-            <label className="unit-label">Output Format</label>
-            <div className="mode-toggle">
-              <button
-                className={`mode-btn ${outputMode === "bullet" ? "mode-btn--active" : ""}`}
-                onClick={() => { setOutputMode("bullet"); setRewritten(""); }}
-              >
-                ☰ Bullet
-              </button>
-              <button
-                className={`mode-btn ${outputMode === "narrative" ? "mode-btn--active" : ""}`}
-                onClick={() => { setOutputMode("narrative"); setRewritten(""); }}
-              >
-                ¶ Narrative
-              </button>
-            </div>
-          </div>
-
           {/* Bullet textarea */}
           <textarea
-            placeholder={
-              outputMode === "bullet"
-                ? "Paste your bullet here..."
-                : "Paste your bullet or notes here — AI will expand into a narrative paragraph..."
-            }
+            placeholder="Paste your bullet here..."
             value={user}
             onChange={(e) => {
               setUser(e.target.value);
@@ -224,9 +210,7 @@ export default function App() {
               onClick={handleRewrite}
               disabled={isRewriting || !user.trim()}
             >
-              {isRewriting
-                ? outputMode === "narrative" ? "Writing…" : "Rewriting…"
-                : outputMode === "narrative" ? "✦ Write Narrative" : "✦ Rewrite"}
+              {isRewriting ? "Rewriting…" : "✦ Rewrite"}
             </button>
           </div>
 
@@ -242,12 +226,10 @@ export default function App() {
             </div>
           )}
 
-          {/* AI output result */}
+          {/* AI rewrite result */}
           {rewritten && (
             <div className="rewrite-result">
-              <div className="rewrite-label">
-                {outputMode === "narrative" ? "AI-Generated Narrative" : "AI-Suggested Rewrite"}
-              </div>
+              <div className="rewrite-label">AI-Suggested Rewrite</div>
               <div className="rewrite-text">{rewritten}</div>
               <button className="copy-btn" onClick={handleCopy}>
                 {copied ? "Copied!" : "Copy"}

@@ -1,6 +1,6 @@
-// api/rewrite.js — Vercel Serverless Function (ES module)
+// api/rewrite.js — Vercel Serverless Function
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -53,7 +53,17 @@ export default async function handler(req, res) {
     .join("\n");
 
 
-  const narrativeSystemPrompt = `You are an elite US military EPR/OPR narrative writer with 20 years of experience writing narratives that get Airmen and Guardians promoted. You us your wealth of knowledge to find the highest impact your guardian/airmen have done. If there isn't a result, you provide an estimate.
+  // ── Step 3: Build unit context ───────────────────────────────────────────
+  const wikiContext = unitMissionFull
+    ? `UNIT WIKIPEDIA CONTEXT FOR ${unit}:\n${unitMissionFull}\n\n`
+    : "";
+
+  const unitInstruction = unit && unit.trim()
+    ? `The member's unit is: ${unit}\n\n${wikiContext}Use the unit context above to make the impact as specific and powerful as possible — naming real systems, commands, asset values, or outcomes tied to this unit's actual mission.`
+    : "";
+
+
+  const narrativeSystemPrompt = `You are an elite US military EPR/OPR narrative writer with 20 years of experience writing narratives that get Airmen and Guardians promoted.
 
 ${unitInstruction}
 
@@ -76,7 +86,7 @@ NARRATIVE STYLE RULES:
 APPROVED ACRONYM/ABBREVIATION LIST:
 ${acronymList}`;
 
-  const bulletSystemPrompt = `You are an elite US military EPR bullet writer with 20 years of experience writing bullets that get Airmen and Guardians promoted.
+  const bulletSystemPrompt = `You are an elite US military EPR bullet writer with 20 years of experience writing bullets that get Airmen and Guardians promoted. You use your expertise to find the impact for your airmen and if tehre is no result generate an estimate for them.
 
 ${unitInstruction}
 
@@ -135,10 +145,6 @@ ${acronymList}`;
     ? `Write a narrative paragraph (4-6 sentences) with clear ACTION, RESULT, and IMPACT for this bullet:\n"${bullet}"\n\nEnd with a direct promotion recommendation.`
     : `Rewrite this bullet:\n"${bullet}"\n\nTarget 110-124 characters. Include full action AND impact after "--". Do not cut the bullet short. Use contracted verbs, f/, w/, numbers, and a specific unit-tied impact.`;
 
-    : `Rewrite this bullet:
-"${bullet}"
-
-Rules: ONE line, <=124 characters total, unique structure, contracted verbs, f/, w/, --, unit-specific impact after the double dash. Count characters before responding.`;
 
   // ── Step 4: Call the LLM ─────────────────────────────────────────────────
   try {

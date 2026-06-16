@@ -18,21 +18,14 @@
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
 
-html {
-  width: 100%;
-  min-height: 100%;
-  overflow-x: hidden;
-}
-
 body {
   background-color: var(--black);
   color: var(--gray-light);
   min-height: 100vh;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: stretch;
   padding: 20px;
-  overflow-x: hidden;
 }
 
 .app-container {
@@ -44,10 +37,9 @@ body {
   padding: 32px;
   max-width: 900px;
   width: 100%;
-  min-height: 100vh;
+  height: 100vh;
   box-shadow: 0 0 24px rgba(0, 0, 0, 0.6);
-  overflow-y: visible;
-  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 h1 {
@@ -79,7 +71,6 @@ textarea {
   border-radius: 10px;
   margin-bottom: 24px;
   transition: border-color 0.3s ease, background-color 0.3s ease;
-  resize: vertical;
 }
 
 textarea:focus {
@@ -153,11 +144,9 @@ button.copy-btn:hover {
   border-radius: 8px;
   margin-bottom: 24px;
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  word-wrap: break-word;
   font-size: 1rem;
   color: var(--gray-light);
-  max-width: 100%;
 }
 
 .result {
@@ -171,10 +160,7 @@ button.copy-btn:hover {
   margin-bottom: 30px;
   animation: fadeIn 0.4s ease-in;
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  max-width: 100%;
-  overflow-x: hidden;
+  word-wrap: break-word;
 }
 
 .result ul {
@@ -195,11 +181,6 @@ button.copy-btn:hover {
   padding: 20px 24px;
   margin-bottom: 30px;
   animation: fadeIn 0.4s ease-in;
-
-  /* Keeps generated bullet inside the card */
-  width: 100%;
-  max-width: 100%;
-  overflow: visible;
 }
 
 .rewrite-label {
@@ -215,16 +196,8 @@ button.copy-btn:hover {
   font-size: 1.1rem;
   color: #e0f7fa;
   line-height: 1.6;
-
-  /* Keeps full bullet visible */
-  white-space: normal;
-
-  /* Important fix: wraps long EPR bullets instead of cutting them off */
-  overflow-wrap: anywhere;
-  word-break: break-word;
-
-  max-width: 100%;
-  overflow: visible;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 .rewrite-error {
@@ -236,20 +209,11 @@ button.copy-btn:hover {
   font-size: 0.95rem;
   margin-bottom: 24px;
   animation: fadeIn 0.3s ease-in;
-  overflow-wrap: anywhere;
-  word-break: break-word;
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0);   }
 }
 
 footer {
@@ -259,6 +223,13 @@ footer {
   padding-top: 20px;
   border-top: 1px solid var(--steel);
   margin-top: 40px;
+}
+
+@media (max-width: 600px) {
+  .app-container { padding: 20px; height: auto; }
+  textarea       { font-size: 0.95rem; }
+  button         { font-size: 0.95rem; padding: 10px 20px; }
+  h1             { font-size: 1.8rem; }
 }
 
 /* ── Unit input ─────────────────────────────────────────────── */
@@ -308,9 +279,6 @@ footer {
   padding: 14px 18px;
   margin-bottom: 20px;
   animation: fadeIn 0.4s ease-in;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  word-break: break-word;
 }
 
 .mission-label {
@@ -326,91 +294,4 @@ footer {
   font-size: 0.9rem;
   color: var(--gray-dark);
   line-height: 1.6;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-/* ── Output mode toggle ─────────────────────────────────────── */
-.mode-toggle-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 16px;
-}
-
-.mode-toggle {
-  display: flex;
-  gap: 0;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 2px solid var(--steel);
-  width: fit-content;
-  max-width: 100%;
-}
-
-.mode-btn {
-  background: transparent;
-  color: var(--gray-light);
-  border: none;
-  padding: 10px 24px;
-  font-size: 0.95rem;
-  font-weight: bold;
-  cursor: pointer;
-  box-shadow: none;
-  border-radius: 0;
-  transition: background 0.2s ease, color 0.2s ease;
-}
-
-.mode-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
-  transform: none;
-}
-
-.mode-btn--active {
-  background: linear-gradient(145deg, var(--primary), #d9a10d);
-  color: var(--black);
-}
-
-.mode-btn--active:hover {
-  background: linear-gradient(145deg, #ffd75b, #f7b400);
-  transform: none;
-}
-
-@media (max-width: 600px) {
-  body {
-    padding: 10px;
-  }
-
-  .app-container {
-    padding: 20px;
-    min-height: auto;
-    border-radius: 12px;
-  }
-
-  textarea {
-    font-size: 0.95rem;
-  }
-
-  button {
-    font-size: 0.95rem;
-    padding: 10px 20px;
-  }
-
-  h1 {
-    font-size: 1.8rem;
-  }
-
-  .rewrite-text {
-    font-size: 1rem;
-    line-height: 1.5;
-  }
-
-  .mode-toggle {
-    width: 100%;
-  }
-
-  .mode-btn {
-    flex: 1;
-    padding: 10px 12px;
-  }
 }

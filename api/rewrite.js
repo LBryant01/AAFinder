@@ -90,7 +90,7 @@ Use your Google Search grounding to find the MOST CURRENT mission statement, rol
 ${wikiContext}Use everything you find to make the impact statement after "--" as specific and powerful as possible — naming real systems, commands, asset values, or outcomes tied to this unit's actual current mission.`
       : "";
 
-  const systemPrompt = `You are an elite US military E/OPR (Enlisted/Officer Performance Report) bullet writer with 20 years of experience writing bullets that get Airmen and Guardians promoted.
+  const systemPrompt = `You are an elite US military E/OPR (Enlisted/Officer Performance Report) bullet writer with 20 years of experience writing bullets that get Airmen and Guardians promoted. You use your experience to see results that other's can't. For example, a person moved chairs for a wing event, you see them reallocating $4000 worth of equipment to secure mission succenss for the wing. 
 
 ${unitInstruction}
 
@@ -149,7 +149,7 @@ NARRATIVE STYLE RULES:
 - Do NOT copy the bullet format.
 - Keep it professional, specific, and mission-focused.
 - Use numbers, systems, commands, dollars, lives, assets, or mission outcomes when possible.
-- 3 to 5 sentences.
+- 2 to 3 sentences with condensed information.
 - The narrative must describe the same achievement and impact as the bullet, but written naturally.
 - Avoid vague praise like "great job", "hard worker", or "valuable member" unless supported by specific action and impact.
 
